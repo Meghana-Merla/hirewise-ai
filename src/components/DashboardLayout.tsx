@@ -8,14 +8,20 @@ interface Props {
 
 export default function DashboardLayout({ children }: Props) {
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex h-screen bg-slate-100">
       <Sidebar />
 
-      <main className="flex-1 p-8">
-        <Navbar />
+      <div className="flex-grow flex flex-col min-w-0 h-full">
+        {/* Fixed Navbar Area */}
+        <div className="p-8 pb-0 shrink-0">
+          <Navbar />
+        </div>
 
-        <div className="mt-8">{children}</div>
-      </main>
+        {/* Scrollable Main Content Area */}
+        <main className="flex-grow overflow-y-auto p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

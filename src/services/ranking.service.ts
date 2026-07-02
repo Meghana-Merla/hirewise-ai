@@ -201,7 +201,7 @@ export class RankingService {
     const availabilityScore = this.computeAvailabilityScore(candidate, config);
 
     // Calculate composite base score
-    let baseScore =
+    const baseScore =
       semanticSimilarity * weights.semantic +
       skillMatchScore * weights.skills +
       experienceScore * weights.experience +
@@ -209,8 +209,18 @@ export class RankingService {
       careerProgressionScore * weights.career_progression +
       availabilityScore * weights.availability;
 
+    // To prevent false-positive anomalies for candidates (like students/freshers) who have internships/mentorships 
+    // but are marked as 0 YOE, we derive a realistic minimum YOE from their professional career history.
+    const professionalMonths = candidate.careerHistory
+      .filter((j) => AnomalyService.isProfessionalExperience(j))
+      .reduce((acc, j) => acc + j.durationMonths, 0);
+    const adjustedYOE = Math.max(candidate.yearsOfExperience, professionalMonths / 12);
+
     // Apply anomaly engine penalty
-    const anomalyResult = AnomalyService.checkCandidate(candidate);
+    const anomalyResult = AnomalyService.checkCandidate({
+      ...candidate,
+      yearsOfExperience: adjustedYOE
+    });
     const penalty = config.anomaly_penalties[anomalyResult.status] ?? 1.0;
     const overallScore = Math.min(1.0, Math.max(0.0, (baseScore * penalty) / 100.0));
 

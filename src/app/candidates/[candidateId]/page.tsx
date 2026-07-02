@@ -136,7 +136,7 @@ export default function CandidateProfilePage() {
   const params = useParams();
   const candidateId = params.candidateId as string;
   const { data: session } = useSession();
-  const userRole = (session?.user as any)?.role || "recruiter";
+  const userRole = (session?.user as any)?.role || "";
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -605,63 +605,65 @@ export default function CandidateProfilePage() {
                   </div>
 
                   {/* Recruiter Actions Card */}
-                  <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-                    <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-50 pb-3">
-                      <BookmarkCheck size={16} className="text-blue-500" />
-                      Recruiter Decision Panel
-                    </h3>
+                  {(userRole === "recruiter" || userRole === "admin") && (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+                      <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-50 pb-3">
+                        <BookmarkCheck size={16} className="text-blue-500" />
+                        Recruiter Decision Panel
+                      </h3>
 
-                    {/* Status Dropdown */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500">Applicant ATS Status</label>
-                      <select
-                        value={status}
-                        onChange={(e) => setStatus(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 cursor-pointer outline-none"
-                      >
-                        <option value="PENDING">PENDING</option>
-                        <option value="SHORTLISTED">SHORTLISTED</option>
-                        <option value="REJECTED">REJECTED</option>
-                      </select>
-                    </div>
-
-                    {/* Notes Box */}
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-500">Evaluation Notes</label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Add evaluation comments, interview feedback, or review summary..."
-                        rows={4}
-                        className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 outline-none resize-none focus:bg-white focus:border-blue-400 transition"
-                      ></textarea>
-                    </div>
-
-                    {/* Submit Actions */}
-                    <button
-                      onClick={handleUpdateMatch}
-                      disabled={updatingMatch}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition shadow-md shadow-blue-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none cursor-pointer"
-                    >
-                      {updatingMatch ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save size={16} />
-                          Save Decisions & Notes
-                        </>
-                      )}
-                    </button>
-
-                    {updateSuccess && (
-                      <div className="text-center text-xs text-green-600 font-bold bg-green-50/50 py-1.5 rounded-lg border border-green-100/50 animate-in fade-in duration-200">
-                        ✓ Updates successfully saved to DB.
+                      {/* Status Dropdown */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500">Applicant ATS Status</label>
+                        <select
+                          value={status}
+                          onChange={(e) => setStatus(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 cursor-pointer outline-none"
+                        >
+                          <option value="PENDING">PENDING</option>
+                          <option value="SHORTLISTED">SHORTLISTED</option>
+                          <option value="REJECTED">REJECTED</option>
+                        </select>
                       </div>
-                    )}
-                  </div>
+
+                      {/* Notes Box */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-slate-500">Evaluation Notes</label>
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          placeholder="Add evaluation comments, interview feedback, or review summary..."
+                          rows={4}
+                          className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 outline-none resize-none focus:bg-white focus:border-blue-400 transition"
+                        ></textarea>
+                      </div>
+
+                      {/* Submit Actions */}
+                      <button
+                        onClick={handleUpdateMatch}
+                        disabled={updatingMatch}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition shadow-md shadow-blue-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none cursor-pointer"
+                      >
+                        {updatingMatch ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save size={16} />
+                            Save Decisions & Notes
+                          </>
+                        )}
+                      </button>
+
+                      {updateSuccess && (
+                        <div className="text-center text-xs text-green-600 font-bold bg-green-50/50 py-1.5 rounded-lg border border-green-100/50 animate-in fade-in duration-200">
+                          ✓ Updates successfully saved to DB.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* No matching evaluations placeholder */

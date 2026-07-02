@@ -12,16 +12,17 @@ export class AnomalyService {
     const titleLower = job.title.toLowerCase();
     const companyLower = job.company.toLowerCase();
 
-    // Keywords that classify experience as Non-professional (Volunteer, Student Organization, Club, Open Source, Campus Activity)
     const nonProfessionalKeywords = [
-      // Volunteer
+      // Volunteer Work
       'volunteer', 'volunteering', 'ngo', 'foundation', 'charity', 'nonprofit', 'non-profit', 'social work',
       // Student Organization & Club & Campus Activity
       'student organization', 'student activities', 'student activity', 'campus activity', 'campus activities',
       'student club', 'club', 'society', 'campus ambassador', 'student lead', 'student representative',
       'campus leader', 'extracurricular', 'chapter lead', 'student chapter', 'university chapter',
       // Open Source
-      'open source', 'open-source', 'summer of code', 'contributor'
+      'open source', 'open-source', 'summer of code', 'contributor',
+      // Community Organizations
+      'community organization', 'community service'
     ];
 
     // Check if title or company contains any non-professional indicators

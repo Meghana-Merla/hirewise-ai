@@ -51,7 +51,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-72 bg-slate-900 text-white min-h-screen flex flex-col">
+    <aside className="w-72 bg-slate-900 text-white flex flex-col">
       <div className="px-8 py-8 border-b border-slate-800">
         <h1 className="text-3xl font-bold">
           HireWise <span className="text-blue-400">AI</span>
