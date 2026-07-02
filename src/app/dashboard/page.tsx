@@ -6,6 +6,7 @@ import StatCard from "@/components/StatCard";
 import CandidatePipelineChart from "@/components/charts/CandidatePipelineChart";
 import MatchDistributionChart from "@/components/charts/MatchDistributionChart";
 import { DashboardStats } from "@/types/dashboard";
+import { DashboardCandidate } from "@/services/candidate-dashboard.service";
 import {
   Users,
   BriefcaseBusiness,
@@ -15,8 +16,13 @@ import {
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [candidates, setCandidates] = useState<DashboardCandidate[]>([]);
+  
+  const [loadingStats, setLoadingStats] = useState<boolean>(true);
+  const [loadingCandidates, setLoadingCandidates] = useState<boolean>(true);
+  
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [candidatesError, setCandidatesError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchStats() {
@@ -28,16 +34,97 @@ export default function DashboardPage() {
         const data: DashboardStats = await res.json();
         setStats(data);
       } catch (err: any) {
-        setError(err.message || "An unexpected error occurred");
+        setStatsError(err.message || "An unexpected error occurred");
       } finally {
-        setLoading(false);
+        setLoadingStats(false);
+      }
+    }
+
+    async function fetchCandidates() {
+      try {
+        const res = await fetch("/api/dashboard/candidates");
+        if (!res.ok) {
+          throw new Error("Failed to fetch top candidates");
+        }
+        const data: DashboardCandidate[] = await res.json();
+        setCandidates(data);
+      } catch (err: any) {
+        setCandidatesError(err.message || "An unexpected error occurred");
+      } finally {
+        setLoadingCandidates(false);
       }
     }
 
     fetchStats();
+    fetchCandidates();
   }, []);
 
-  if (loading) {
+  const getStatusBadge = (status: string) => {
+    switch (status.toUpperCase()) {
+      case "SHORTLISTED":
+        return (
+          <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+            Shortlisted
+          </span>
+        );
+      case "PENDING":
+        return (
+          <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+            Pending
+          </span>
+        );
+      case "REJECTED":
+        return (
+          <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+            Rejected
+          </span>
+        );
+      default:
+        return (
+          <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+            {status || "Unknown"}
+          </span>
+        );
+    }
+  };
+
+  const retryFetchStats = () => {
+    setLoadingStats(true);
+    setStatsError(null);
+    fetch("/api/dashboard/stats")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch dashboard statistics");
+        return res.json();
+      })
+      .then((data) => {
+        setStats(data);
+        setLoadingStats(false);
+      })
+      .catch((err) => {
+        setStatsError(err.message || "An unexpected error occurred");
+        setLoadingStats(false);
+      });
+  };
+
+  const retryFetchCandidates = () => {
+    setLoadingCandidates(true);
+    setCandidatesError(null);
+    fetch("/api/dashboard/candidates")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch top candidates");
+        return res.json();
+      })
+      .then((data) => {
+        setCandidates(data);
+        setLoadingCandidates(false);
+      })
+      .catch((err) => {
+        setCandidatesError(err.message || "An unexpected error occurred");
+        setLoadingCandidates(false);
+      });
+  };
+
+  if (loadingStats) {
     return (
       <DashboardLayout>
         {/* Heading Skeleton */}
@@ -77,7 +164,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (error) {
+  if (statsError) {
     return (
       <DashboardLayout>
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-800 shadow-sm max-w-2xl mx-auto mt-8">
@@ -88,26 +175,10 @@ export default function DashboardPage() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold">Unable to load dashboard data</h3>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <h3 className="text-lg font-semibold">Unable to load dashboard statistics</h3>
+              <p className="text-sm text-red-700 mt-1">{statsError}</p>
               <button 
-                onClick={() => {
-                  setLoading(true);
-                  setError(null);
-                  fetch("/api/dashboard/stats")
-                    .then((res) => {
-                      if (!res.ok) throw new Error("Failed to fetch dashboard statistics");
-                      return res.json();
-                    })
-                    .then((data) => {
-                      setStats(data);
-                      setLoading(false);
-                    })
-                    .catch((err) => {
-                      setError(err.message || "An unexpected error occurred");
-                      setLoading(false);
-                    });
-                }}
+                onClick={retryFetchStats}
                 className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition duration-150 shadow-sm"
               >
                 Try Again
@@ -198,47 +269,83 @@ export default function DashboardPage() {
 
         <table className="w-full">
           <thead>
-            <tr className="text-left border-b">
+            <tr className="text-left border-b text-slate-500 text-sm font-semibold">
               <th className="py-3">Candidate</th>
-              <th>AI Score</th>
+              <th>Current Title</th>
               <th>Experience</th>
+              <th>AI Score</th>
               <th>Status</th>
             </tr>
           </thead>
 
           <tbody>
-            <tr className="border-b hover:bg-slate-50">
-              <td className="py-4">John Doe</td>
-              <td>96.2%</td>
-              <td>4 Years</td>
-              <td>
-                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full">
-                  Excellent
-                </span>
-              </td>
-            </tr>
-
-            <tr className="border-b hover:bg-slate-50">
-              <td className="py-4">Alice Smith</td>
-              <td>94.8%</td>
-              <td>3 Years</td>
-              <td>
-                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
-                  Strong
-                </span>
-              </td>
-            </tr>
-
-            <tr className="hover:bg-slate-50">
-              <td className="py-4">David Lee</td>
-              <td>91.7%</td>
-              <td>5 Years</td>
-              <td>
-                <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
-                  Good
-                </span>
-              </td>
-            </tr>
+            {loadingCandidates ? (
+              [...Array(3)].map((_, i) => (
+                <tr key={i} className="border-b animate-pulse">
+                  <td className="py-4">
+                    <div className="h-5 w-24 bg-slate-200 rounded"></div>
+                  </td>
+                  <td>
+                    <div className="h-5 w-48 bg-slate-200 rounded"></div>
+                  </td>
+                  <td>
+                    <div className="h-5 w-16 bg-slate-200 rounded"></div>
+                  </td>
+                  <td>
+                    <div className="h-5 w-12 bg-slate-200 rounded"></div>
+                  </td>
+                  <td>
+                    <div className="h-7 w-20 bg-slate-200 rounded-full"></div>
+                  </td>
+                </tr>
+              ))
+            ) : candidatesError ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-red-500 font-medium">
+                  {candidatesError}.{" "}
+                  <button
+                    onClick={retryFetchCandidates}
+                    className="underline hover:text-red-700 font-semibold"
+                  >
+                    Retry
+                  </button>
+                </td>
+              </tr>
+            ) : candidates.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-slate-400 font-medium">
+                  No candidates analyzed yet.
+                </td>
+              </tr>
+            ) : (
+              candidates.map((candidate) => (
+                <tr key={candidate.matchId} className="border-b hover:bg-slate-50 transition duration-150">
+                  <td className="py-4 font-semibold text-slate-800">{candidate.name}</td>
+                  <td className="text-slate-600">
+                    {candidate.currentTitle ? (
+                      candidate.currentCompany ? (
+                        <span>
+                          {candidate.currentTitle} <span className="text-slate-400">@</span> {candidate.currentCompany}
+                        </span>
+                      ) : (
+                        candidate.currentTitle
+                      )
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </td>
+                  <td className="text-slate-600">
+                    {candidate.yearsOfExperience} Year{candidate.yearsOfExperience === 1 ? "" : "s"}
+                  </td>
+                  <td className="font-bold text-blue-600">
+                    {candidate.overallScore.toFixed(1)}%
+                  </td>
+                  <td>
+                    {getStatusBadge(candidate.recruiterStatus)}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
