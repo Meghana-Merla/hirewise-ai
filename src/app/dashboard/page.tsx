@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
 import CandidatePipelineChart from "@/components/charts/CandidatePipelineChart";
 import MatchDistributionChart from "@/components/charts/MatchDistributionChart";
-import { DashboardStats } from "@/types/dashboard";
+import { DashboardStats, DashboardAnalytics } from "@/types/dashboard";
 import { DashboardCandidate } from "@/services/candidate-dashboard.service";
 import {
   Users,
@@ -17,12 +17,15 @@ import {
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [candidates, setCandidates] = useState<DashboardCandidate[]>([]);
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   
   const [loadingStats, setLoadingStats] = useState<boolean>(true);
   const [loadingCandidates, setLoadingCandidates] = useState<boolean>(true);
+  const [loadingAnalytics, setLoadingAnalytics] = useState<boolean>(true);
   
   const [statsError, setStatsError] = useState<string | null>(null);
   const [candidatesError, setCandidatesError] = useState<string | null>(null);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchStats() {
@@ -55,8 +58,24 @@ export default function DashboardPage() {
       }
     }
 
+    async function fetchAnalytics() {
+      try {
+        const res = await fetch("/api/dashboard/analytics");
+        if (!res.ok) {
+          throw new Error("Failed to fetch dashboard analytics");
+        }
+        const data: DashboardAnalytics = await res.json();
+        setAnalytics(data);
+      } catch (err: any) {
+        setAnalyticsError(err.message || "An unexpected error occurred");
+      } finally {
+        setLoadingAnalytics(false);
+      }
+    }
+
     fetchStats();
     fetchCandidates();
+    fetchAnalytics();
   }, []);
 
   const getStatusBadge = (status: string) => {
@@ -121,6 +140,24 @@ export default function DashboardPage() {
       .catch((err) => {
         setCandidatesError(err.message || "An unexpected error occurred");
         setLoadingCandidates(false);
+      });
+  };
+
+  const retryFetchAnalytics = () => {
+    setLoadingAnalytics(true);
+    setAnalyticsError(null);
+    fetch("/api/dashboard/analytics")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch dashboard analytics");
+        return res.json();
+      })
+      .then((data) => {
+        setAnalytics(data);
+        setLoadingAnalytics(false);
+      })
+      .catch((err) => {
+        setAnalyticsError(err.message || "An unexpected error occurred");
+        setLoadingAnalytics(false);
       });
   };
 
@@ -208,7 +245,7 @@ export default function DashboardPage() {
         <StatCard
           title="Total Candidates"
           value={stats?.totalCandidates.toLocaleString() ?? "0"}
-          change="+12% this month"
+          change={stats ? `+${stats.recentUploads.toLocaleString()} this week` : "Synced with Database"}
           icon={Users}
           color="bg-blue-600"
         />
@@ -216,7 +253,7 @@ export default function DashboardPage() {
         <StatCard
           title="Active Jobs"
           value={stats?.activeJobs.toLocaleString() ?? "0"}
-          change="+4 new jobs"
+          change="Synced with Database"
           icon={BriefcaseBusiness}
           color="bg-green-600"
         />
@@ -224,7 +261,7 @@ export default function DashboardPage() {
         <StatCard
           title="Shortlisted"
           value={stats?.shortlisted.toLocaleString() ?? "0"}
-          change="+18 today"
+          change="Updated in Real Time"
           icon={Trophy}
           color="bg-yellow-500"
         />
@@ -232,7 +269,7 @@ export default function DashboardPage() {
         <StatCard
           title="Average AI Score"
           value={stats ? `${stats.averageAIScore}%` : "0%"}
-          change="+2.1%"
+          change="Live Data"
           icon={TrendingUp}
           color="bg-purple-600"
         />
@@ -240,23 +277,53 @@ export default function DashboardPage() {
 
       {/* Charts */}
       <div className="grid grid-cols-2 gap-6 mt-8">
-        <div className="bg-white rounded-2xl shadow-sm p-6 h-80">
-          <h2 className="font-semibold text-xl">
+        <div className="bg-white rounded-2xl shadow-sm p-6 h-80 flex flex-col justify-between">
+          <h2 className="font-semibold text-xl mb-4">
             Candidate Pipeline
           </h2>
 
-          <div className="flex items-center justify-center h-full text-gray-400">
-            <CandidatePipelineChart />
+          <div className="flex-1 flex items-center justify-center text-gray-400">
+            {analyticsError ? (
+              <div className="text-center text-red-500 text-sm">
+                <span>{analyticsError}</span>
+                <button
+                  onClick={retryFetchAnalytics}
+                  className="block mx-auto mt-2 underline hover:text-red-700 font-semibold"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <CandidatePipelineChart
+                data={analytics?.pipeline ?? []}
+                loading={loadingAnalytics}
+              />
+            )}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-6 h-80">
-          <h2 className="font-semibold text-xl">
+        <div className="bg-white rounded-2xl shadow-sm p-6 h-80 flex flex-col justify-between">
+          <h2 className="font-semibold text-xl mb-4">
             AI Match Distribution
           </h2>
 
-          <div className="flex items-center justify-center h-full text-gray-400">
-            <MatchDistributionChart />
+          <div className="flex-1 flex items-center justify-center text-gray-400">
+            {analyticsError ? (
+              <div className="text-center text-red-500 text-sm">
+                <span>{analyticsError}</span>
+                <button
+                  onClick={retryFetchAnalytics}
+                  className="block mx-auto mt-2 underline hover:text-red-700 font-semibold"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <MatchDistributionChart
+                data={analytics?.distribution ?? []}
+                loading={loadingAnalytics}
+              />
+            )}
           </div>
         </div>
       </div>
