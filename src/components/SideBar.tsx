@@ -14,7 +14,7 @@ import {
 
 const menus = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { name: "Upload Resume", icon: Upload, href: "#" },
+  { name: "Upload Resume", icon: Upload, href: "/upload-resume" },
   { name: "Jobs", icon: BriefcaseBusiness, href: "/jobs" },
   { name: "Candidates", icon: Users, href: "#" },
   { name: "AI Rankings", icon: Trophy, href: "#" },
