@@ -3,17 +3,27 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ candidateId: string }> }
 ) {
   try {
-    const { id } = await params;
+    const { candidateId } = await params;
     
-    const candidate = await prisma.candidate.findUnique({
-      where: { id },
+    const candidate = await prisma.candidate.findFirst({
+      where: {
+        OR: [
+          { id: candidateId },
+          { candidateId: candidateId }
+        ]
+      },
       include: {
         skills: true,
         education: true,
         careerHistory: true,
+        matches: {
+          include: {
+            job: true
+          }
+        }
       },
     });
 

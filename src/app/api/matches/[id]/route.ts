@@ -8,26 +8,34 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { recruiterStatus } = body;
+    const { recruiterStatus, recruiterNotes } = body;
 
-    if (!recruiterStatus) {
-      return NextResponse.json(
-        { message: "recruiterStatus is required" },
-        { status: 400 }
-      );
+    const updateData: any = {};
+    if (recruiterStatus !== undefined) {
+      const validStatuses = ["PENDING", "SHORTLISTED", "REJECTED"];
+      if (!validStatuses.includes(recruiterStatus)) {
+        return NextResponse.json(
+          { message: "Invalid recruiter status" },
+          { status: 400 }
+        );
+      }
+      updateData.recruiterStatus = recruiterStatus;
     }
 
-    const validStatuses = ["PENDING", "SHORTLISTED", "REJECTED"];
-    if (!validStatuses.includes(recruiterStatus)) {
+    if (recruiterNotes !== undefined) {
+      updateData.recruiterNotes = recruiterNotes;
+    }
+
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
-        { message: "Invalid recruiter status" },
+        { message: "Either recruiterStatus or recruiterNotes must be provided" },
         { status: 400 }
       );
     }
 
     const updated = await prisma.match.update({
       where: { id },
-      data: { recruiterStatus },
+      data: updateData,
     });
 
     return NextResponse.json(updated, { status: 200 });

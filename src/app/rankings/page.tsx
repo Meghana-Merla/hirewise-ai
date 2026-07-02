@@ -425,13 +425,13 @@ export default function AIRankingsPage() {
                           </div>
 
                           <div className="flex gap-2">
-                            <a
-                              href={`/dashboard`}
+                            <Link
+                              href={`/candidates/${match.candidate.id}`}
                               className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
                             >
                               <Users size={12} />
                               Candidate Profile
-                            </a>
+                            </Link>
                             <a
                               href={`/jobs/${selectedJobId}/evaluate`}
                               className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-100 cursor-pointer"

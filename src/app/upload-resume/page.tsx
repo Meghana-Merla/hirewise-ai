@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import { 
   UploadCloud, 
@@ -300,13 +301,13 @@ export default function UploadResumePage() {
                 >
                   Import Another Candidate
                 </button>
-                <a
-                  href="/dashboard"
+                <Link
+                  href={`/candidates/${candidateData?.id || ''}`}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-md shadow-blue-100 cursor-pointer"
                 >
                   Open Candidate Profile
                   <ArrowRight size={16} />
-                </a>
+                </Link>
               </div>
             </div>
           )}

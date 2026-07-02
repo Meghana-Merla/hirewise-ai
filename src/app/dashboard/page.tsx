@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import StatCard from "@/components/StatCard";
 import CandidatePipelineChart from "@/components/charts/CandidatePipelineChart";
@@ -387,7 +388,11 @@ export default function DashboardPage() {
             ) : (
               candidates.map((candidate) => (
                 <tr key={candidate.matchId} className="border-b hover:bg-slate-50 transition duration-150">
-                  <td className="py-4 font-semibold text-slate-800">{candidate.name}</td>
+                  <td className="py-4 font-semibold text-slate-800">
+                    <Link href={`/candidates/${candidate.candidateId}`} className="hover:text-blue-600 hover:underline cursor-pointer">
+                      {candidate.name}
+                    </Link>
+                  </td>
                   <td className="text-slate-600">
                     {candidate.currentTitle ? (
                       candidate.currentCompany ? (
