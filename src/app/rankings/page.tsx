@@ -79,6 +79,9 @@ export default function AIRankingsPage() {
   // Expanded match details list
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
 
+  // Excel exporting state
+  const [exporting, setExporting] = useState<boolean>(false);
+
   // Fetch jobs list
   useEffect(() => {
     async function fetchJobs() {
@@ -153,6 +156,31 @@ export default function AIRankingsPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (!selectedJobId) return;
+    try {
+      setExporting(true);
+      const res = await fetch(`/api/jobs/${selectedJobId}/export`);
+      if (!res.ok) {
+        throw new Error("Failed to export Excel report. Please try again.");
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "recommended_candidates.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert("Export failed: " + err.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const toggleExpand = (matchId: string) => {
     if (expandedMatchId === matchId) {
       setExpandedMatchId(null);
@@ -192,21 +220,45 @@ export default function AIRankingsPage() {
           </p>
         </div>
 
-        {/* Job selector dropdown */}
+        {/* Job selector dropdown & Export button */}
         {!jobsLoading && jobs.length > 0 && (
-          <div className="flex items-center gap-2 bg-white px-4 py-2.5 border border-slate-100 rounded-xl shadow-sm min-w-[280px]">
-            <BriefcaseBusiness className="text-slate-400 shrink-0 h-5 w-5" />
-            <select
-              value={selectedJobId}
-              onChange={(e) => setSelectedJobId(e.target.value)}
-              className="w-full text-slate-700 font-semibold text-sm outline-none bg-transparent cursor-pointer"
-            >
-              {jobs.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.title} ({j.company})
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+            <div className="flex items-center gap-2 bg-white px-4 py-2.5 border border-slate-100 rounded-xl shadow-sm min-w-[280px]">
+              <BriefcaseBusiness className="text-slate-400 shrink-0 h-5 w-5" />
+              <select
+                value={selectedJobId}
+                onChange={(e) => setSelectedJobId(e.target.value)}
+                className="w-full text-slate-700 font-semibold text-sm outline-none bg-transparent cursor-pointer"
+              >
+                {jobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.title} ({j.company})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedJobId && matches.length > 0 && (
+              <button
+                onClick={handleExportExcel}
+                disabled={exporting}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition cursor-pointer shadow-md shadow-green-100 text-sm"
+              >
+                {exporting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    <span>Exporting...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span>Export Results</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>
