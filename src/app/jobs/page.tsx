@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
@@ -31,7 +31,7 @@ interface Job {
   createdAt: string;
 }
 
-export default function JobsPage() {
+function JobsPageContent() {
   const { data: session } = useSession();
   const isCandidate = (session?.user as any)?.role === "candidate";
 
@@ -727,5 +727,18 @@ export default function JobsPage() {
         </div>
       )}
     </DashboardLayout>
+  );
+}
+
+export default function JobsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center p-16 text-slate-500 min-h-[500px]">
+        <Loader2 size={36} className="animate-spin text-blue-600 mb-4" />
+        <p className="font-semibold text-lg">Loading Jobs...</p>
+      </div>
+    }>
+      <JobsPageContent />
+    </Suspense>
   );
 }
