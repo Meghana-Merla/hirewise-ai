@@ -106,3 +106,22 @@ export async function DELETE(
     return NextResponse.json({ message: error.message || "Failed to delete job" }, { status: 500 });
   }
 }
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: jobId } = await params;
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+    });
+    if (!job) {
+      return NextResponse.json({ message: "Job not found" }, { status: 404 });
+    }
+    return NextResponse.json(job, { status: 200 });
+  } catch (error: any) {
+    console.error("Fetch Job Error:", error);
+    return NextResponse.json({ message: error.message || "Failed to fetch job" }, { status: 500 });
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import Link from "next/link";
 import { 
   BriefcaseBusiness, 
   Plus, 
@@ -10,7 +11,8 @@ import {
   Trash2, 
   Loader2, 
   AlertTriangle,
-  FolderOpen
+  FolderOpen,
+  UserCheck
 } from "lucide-react";
 
 interface Job {
@@ -286,6 +288,14 @@ export default function JobsPage() {
                     </td>
                     <td className="py-4 px-6 text-center">
                       <div className="flex items-center justify-center gap-3">
+                        <Link
+                          href={`/jobs/${job.id}/evaluate`}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition duration-150 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                          title="Evaluate Candidates"
+                        >
+                          <UserCheck size={14} />
+                          Evaluate
+                        </Link>
                         <button
                           onClick={() => handleOpenEditModal(job)}
                           className="p-2 bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition duration-150 cursor-pointer"
