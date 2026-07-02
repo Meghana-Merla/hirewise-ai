@@ -44,7 +44,7 @@ def run_precompute(candidates_path: str, jd_path: str, output_dir: str, limit: i
         raise ValueError("GEMINI_API_KEY is required")
     
     genai.configure(api_key=api_key)
-    model_name = "models/text-embedding-004"
+    model_name = "models/gemini-embedding-001"
 
     os.makedirs(output_dir, exist_ok=True)
     jd_vector_path = os.path.join(output_dir, "jd_embedding.npy")
@@ -64,7 +64,8 @@ def run_precompute(candidates_path: str, jd_path: str, output_dir: str, limit: i
         jd_result = genai.embed_content(
             model=model_name,
             content=jd_text,
-            task_type="retrieval_document"
+            task_type="retrieval_document",
+            output_dimensionality=768
         )
         jd_embedding = np.array(jd_result["embedding"], dtype=np.float32)
         np.save(jd_vector_path, jd_embedding)
@@ -120,7 +121,8 @@ def run_precompute(candidates_path: str, jd_path: str, output_dir: str, limit: i
                 response = genai.embed_content(
                     model=model_name,
                     content=batch_texts,
-                    task_type="retrieval_document"
+                    task_type="retrieval_document",
+                    output_dimensionality=768
                 )
                 embeddings = response["embedding"]
                 

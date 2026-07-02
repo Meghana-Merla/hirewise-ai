@@ -22,8 +22,13 @@ export class GeminiService {
   public static async generateEmbedding(text: string): Promise<number[]> {
     try {
       const client = this.getClient();
-      const model = client.getGenerativeModel({ model: 'text-embedding-004' });
-      const result = await model.embedContent(text);
+      const model = client.getGenerativeModel({ model: 'gemini-embedding-001' });
+      const result = await model.embedContent({
+        content: {
+          parts: [{ text }],
+        },
+        outputDimensionality: 768,
+      } as any);
       if (!result?.embedding?.values) {
         throw new AIError('Embedding generation returned empty values.');
       }
@@ -41,7 +46,7 @@ export class GeminiService {
     try {
       const client = this.getClient();
       const model = client.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: this.getCandidateSchema(),
@@ -77,7 +82,7 @@ ${resumeText}
     try {
       const client = this.getClient();
       const model = client.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: this.getJobSchema(),
@@ -131,7 +136,7 @@ ${jdText}
     try {
       const client = this.getClient();
       const model = client.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
           responseSchema: this.getExplanationSchema(),

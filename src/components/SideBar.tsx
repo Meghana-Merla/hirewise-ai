@@ -1,5 +1,7 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   LayoutDashboard,
   Upload,
@@ -11,16 +13,18 @@ import {
 } from "lucide-react";
 
 const menus = [
-  { name: "Dashboard", icon: LayoutDashboard },
-  { name: "Upload Resume", icon: Upload },
-  { name: "Jobs", icon: BriefcaseBusiness },
-  { name: "Candidates", icon: Users },
-  { name: "AI Rankings", icon: Trophy },
-  { name: "Analytics", icon: BarChart3 },
-  { name: "Settings", icon: Settings },
+  { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+  { name: "Upload Resume", icon: Upload, href: "#" },
+  { name: "Jobs", icon: BriefcaseBusiness, href: "/jobs" },
+  { name: "Candidates", icon: Users, href: "#" },
+  { name: "AI Rankings", icon: Trophy, href: "#" },
+  { name: "Analytics", icon: BarChart3, href: "#" },
+  { name: "Settings", icon: Settings, href: "#" },
 ];
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
   return (
     <aside className="w-72 bg-slate-900 text-white min-h-screen flex flex-col">
       <div className="px-8 py-8 border-b border-slate-800">
@@ -32,20 +36,22 @@ export default function Sidebar() {
       <nav className="flex-1 p-5 space-y-2">
         {menus.map((menu, index) => {
           const Icon = menu.icon;
+          const isActive = pathname === menu.href;
 
           return (
-            <button
+            <Link
               key={index}
+              href={menu.href}
               className={`flex items-center gap-4 w-full px-4 py-3 rounded-xl transition
               ${
-                index === 0
-                  ? "bg-blue-600"
+                isActive
+                  ? "bg-blue-600 text-white"
                   : "hover:bg-slate-800 text-slate-300"
               }`}
             >
               <Icon size={20} />
               {menu.name}
-            </button>
+            </Link>
           );
         })}
       </nav>
