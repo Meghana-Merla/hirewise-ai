@@ -23,7 +23,7 @@ export default function Sidebar() {
     { name: "Import Candidate Resume", icon: Upload, href: "/upload-resume" },
     { name: "Jobs", icon: BriefcaseBusiness, href: "/jobs" },
     { name: "AI Rankings", icon: Trophy, href: "/rankings" },
-    { name: "Analytics", icon: BarChart3, href: "#" },
+    { name: "Analytics", icon: BarChart3, href: "/analytics" },
     { name: "Settings", icon: Settings, href: "#" },
   ];
 
