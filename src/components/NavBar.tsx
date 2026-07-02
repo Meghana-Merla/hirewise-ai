@@ -1,10 +1,27 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Bell, Moon, Search, LogOut } from "lucide-react";
 
 export default function Navbar() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const currentSearch = searchParams.get("search") || "";
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("search", val);
+    } else {
+      params.delete("search");
+    }
+    router.replace(`${pathname}?${params.toString()}`);
+  };
 
   const handleLogout = () => {
     signOut({ callbackUrl: "/login" });
@@ -25,6 +42,8 @@ export default function Navbar() {
         <input
           type="text"
           placeholder={displayRole === "candidate" ? "Search jobs..." : "Search candidates, jobs..."}
+          value={currentSearch}
+          onChange={handleSearchChange}
           className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all duration-200 outline-none hover:border-slate-300 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
         />
       </div>

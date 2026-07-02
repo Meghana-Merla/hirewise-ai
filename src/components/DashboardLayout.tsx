@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, Suspense } from "react";
 import Sidebar from "./SideBar";
 import Navbar from "./NavBar";
 
@@ -14,7 +14,9 @@ export default function DashboardLayout({ children }: Props) {
       <div className="flex-grow flex flex-col min-w-0 h-full">
         {/* Fixed Navbar Area */}
         <div className="p-8 pb-0 shrink-0">
-          <Navbar />
+          <Suspense fallback={<div className="h-[76px] bg-white rounded-2xl animate-pulse"></div>}>
+            <Navbar />
+          </Suspense>
         </div>
 
         {/* Scrollable Main Content Area */}

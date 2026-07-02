@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { 
   BriefcaseBusiness, 
   Plus, 
-  Search, 
   Edit, 
   Trash2, 
   Loader2, 
@@ -38,7 +38,9 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get("search") || "";
 
   // Modal states
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
@@ -296,17 +298,7 @@ export default function JobsPage() {
         </div>
       )}
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-2xl shadow-sm p-4 mb-6 flex items-center gap-3 border border-slate-100">
-        <Search className="text-slate-400 h-5 w-5 ml-1" />
-        <input
-          type="text"
-          placeholder="Search by job title or company name..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full text-slate-800 placeholder-slate-400 outline-none text-sm font-medium"
-        />
-      </div>
+      {/* Search experience is handled via Global Navbar Search */}
 
       {/* Main Jobs Content */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-100">
