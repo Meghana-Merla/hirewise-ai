@@ -28,7 +28,7 @@ export async function getTopCandidates(): Promise<DashboardCandidate[]> {
     candidateId: m.candidateId,
     name: m.candidate.name,
     yearsOfExperience: m.candidate.yearsOfExperience,
-    overallScore: m.overallScore,
+    overallScore: m.overallScore * 100,
     recruiterStatus: m.recruiterStatus,
     currentTitle: m.candidate.currentTitle,
     currentCompany: m.candidate.currentCompany,

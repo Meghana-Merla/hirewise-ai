@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { 
   UploadCloud, 
@@ -52,6 +53,10 @@ interface ParsedCandidate {
 }
 
 export default function UploadResumePage() {
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string })?.role || "recruiter";
+  const isCandidate = role === "candidate";
+
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
   
@@ -160,8 +165,9 @@ export default function UploadResumePage() {
       const fullCandidate = await detailsRes.json();
       setCandidateData(fullCandidate);
       setUploadStatus("success");
-    } catch (err: any) {
-      setErrorMessage(err.message || "An unexpected error occurred during processing.");
+    } catch (err: unknown) {
+      const errorObj = err as Error | null | undefined;
+      setErrorMessage(errorObj?.message || "An unexpected error occurred during processing.");
       setUploadStatus("error");
     }
   };
@@ -183,10 +189,12 @@ export default function UploadResumePage() {
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-slate-800 flex items-center gap-3">
           <UploadCloud className="text-blue-600 h-10 w-10" />
-          Import Candidate Resume
+          {isCandidate ? "Upload Resume" : "Import Candidate Resume"}
         </h1>
         <p className="text-slate-500 mt-2">
-          Import candidate resumes collected from external sources for AI evaluation.
+          {isCandidate 
+            ? "Upload your resume in PDF format to build your AI profile and get matched with available jobs."
+            : "Import candidate resumes collected from external sources for AI evaluation."}
         </p>
       </div>
 
@@ -194,7 +202,7 @@ export default function UploadResumePage() {
         {/* Upload column */}
         <div className={`col-span-1 lg:col-span-5 bg-white rounded-2xl p-6 border shadow-sm transition-all duration-300 ${dragActive ? "border-blue-500 bg-blue-50/20" : "border-slate-100"}`}>
           <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-            Candidate Import Pipeline
+            {isCandidate ? "Resume Upload Pipeline" : "Candidate Import Pipeline"}
           </h2>
 
           {/* Drag & Drop Zone */}
@@ -220,7 +228,7 @@ export default function UploadResumePage() {
               <UploadCloud size={48} className={`mb-4 transition duration-150 ${dragActive ? "text-blue-600 animate-bounce" : "text-slate-400"}`} />
 
               <p className="font-semibold text-slate-800 text-sm">
-                Drag & drop candidate resume here, or <span className="text-blue-600 hover:underline">select candidate resume</span>
+                {isCandidate ? "Drag & drop your resume here, or " : "Drag & drop candidate resume here, or "}<span className="text-blue-600 hover:underline">{isCandidate ? "select your resume" : "select candidate resume"}</span>
               </p>
               <p className="text-xs text-slate-400 mt-2">PDF files only (Max 10MB)</p>
             </div>
@@ -263,7 +271,7 @@ export default function UploadResumePage() {
               onClick={handleUpload}
               className="mt-6 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-md shadow-blue-100 cursor-pointer"
             >
-              Process & Analyze Candidate
+              {isCandidate ? "Process & Analyze Resume" : "Process & Analyze Candidate"}
             </button>
           )}
 
@@ -272,7 +280,7 @@ export default function UploadResumePage() {
               <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
                 <span className="flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin text-blue-600" />
-                  {uploadStatus === "uploading" ? "Importing PDF..." : "AI Parsing & Extracting Details..."}
+                  {uploadStatus === "uploading" ? (isCandidate ? "Uploading PDF..." : "Importing PDF...") : "AI Parsing & Extracting Details..."}
                 </span>
                 <span>{progress}%</span>
               </div>
@@ -289,9 +297,11 @@ export default function UploadResumePage() {
           {uploadStatus === "success" && (
             <div className="mt-4 text-center p-6 border border-green-100 bg-green-50/10 rounded-2xl flex flex-col items-center">
               <CheckCircle size={48} className="text-green-600 mb-3" />
-              <h3 className="text-lg font-bold text-slate-800">Import Complete!</h3>
+              <h3 className="text-lg font-bold text-slate-800">{isCandidate ? "Resume Uploaded Successfully" : "Import Complete!"}</h3>
               <p className="text-sm text-slate-500 mt-1.5">
-                Candidate was imported and successfully parsed by Gemini.
+                {isCandidate 
+                  ? "Your resume was uploaded and successfully parsed by Gemini." 
+                  : "Candidate was imported and successfully parsed by Gemini."}
               </p>
               
               <div className="flex gap-3 w-full mt-6">
@@ -299,13 +309,13 @@ export default function UploadResumePage() {
                   onClick={handleReset}
                   className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-xl text-sm transition cursor-pointer"
                 >
-                  Import Another Candidate
+                  {isCandidate ? "Replace Resume" : "Import Another Candidate"}
                 </button>
                 <Link
                   href={`/candidates/${candidateData?.id || ''}`}
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm transition shadow-md shadow-blue-100 cursor-pointer"
                 >
-                  Open Candidate Profile
+                  Open My Profile
                   <ArrowRight size={16} />
                 </Link>
               </div>
@@ -428,7 +438,9 @@ export default function UploadResumePage() {
               <Sparkles size={36} className="mb-3 text-slate-300" />
               <h3 className="font-bold text-slate-700 text-sm">Waiting for Analysis</h3>
               <p className="text-xs text-slate-400 max-w-xs mt-1.5">
-                Once a candidate resume PDF is imported, Gemini's AI pipeline will dissect it and display the structured profile metadata here.
+                {isCandidate 
+                  ? "Once your resume PDF is uploaded, Gemini's AI pipeline will dissect it and display the structured profile metadata here."
+                  : "Once a candidate resume PDF is imported, Gemini's AI pipeline will dissect it and display the structured profile metadata here."}
               </p>
             </div>
           )}

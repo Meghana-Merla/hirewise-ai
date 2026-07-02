@@ -212,7 +212,7 @@ export class RankingService {
     // Apply anomaly engine penalty
     const anomalyResult = AnomalyService.checkCandidate(candidate);
     const penalty = config.anomaly_penalties[anomalyResult.status] ?? 1.0;
-    const overallScore = Math.min(100.0, Math.max(0.0, baseScore * penalty));
+    const overallScore = Math.min(1.0, Math.max(0.0, (baseScore * penalty) / 100.0));
 
     return {
       overallScore,

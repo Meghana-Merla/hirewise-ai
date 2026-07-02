@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { 
   BriefcaseBusiness, 
   Plus, 
@@ -12,7 +13,9 @@ import {
   Loader2, 
   AlertTriangle,
   FolderOpen,
-  UserCheck
+  UserCheck,
+  Eye,
+  CheckCircle2
 } from "lucide-react";
 
 interface Job {
@@ -29,6 +32,9 @@ interface Job {
 }
 
 export default function JobsPage() {
+  const { data: session } = useSession();
+  const isCandidate = (session?.user as any)?.role === "candidate";
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +42,19 @@ export default function JobsPage() {
 
   // Modal states
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [appliedJobIds, setAppliedJobIds] = useState<Set<string>>(new Set());
+
+  // Candidate status
+  const [candidateProfile, setCandidateProfile] = useState<any | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(true);
+
+  const hasResume = isCandidate
+    ? !!(candidateProfile && candidateProfile.rawResumeText && candidateProfile.rawResumeText.trim() !== "")
+    : false;
 
   // Form fields
   const [formTitle, setFormTitle] = useState<string>("");
@@ -52,7 +68,45 @@ export default function JobsPage() {
 
   useEffect(() => {
     fetchJobs();
-  }, []);
+    if (isCandidate) {
+      fetchMatches();
+      fetchCandidateProfile();
+    } else {
+      setProfileLoading(false);
+    }
+  }, [session, isCandidate]);
+
+  const fetchCandidateProfile = async () => {
+    if (!session?.user?.id) return;
+    try {
+      setProfileLoading(true);
+      const res = await fetch(`/api/candidates/${session.user.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCandidateProfile(data);
+      } else {
+        setCandidateProfile(null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch candidate profile:", err);
+      setCandidateProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  const fetchMatches = async () => {
+    try {
+      const res = await fetch("/api/matches");
+      if (res.ok) {
+        const data = await res.json();
+        const applied = new Set<string>(data.map((m: any) => m.jobId));
+        setAppliedJobIds(applied);
+      }
+    } catch (err) {
+      console.error("Failed to fetch matches:", err);
+    }
+  };
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -144,6 +198,38 @@ export default function JobsPage() {
     }
   };
 
+  const handleApply = async (jobId: string) => {
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/matches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to apply");
+      }
+
+      setAppliedJobIds((prev) => {
+        const updated = new Set(prev);
+        updated.add(jobId);
+        return updated;
+      });
+      alert("Applied successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to apply for job.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenDetailsModal = (job: Job) => {
+    setSelectedJob(job);
+    setIsDetailsModalOpen(true);
+  };
+
   const handleDeleteConfirm = async () => {
     if (!selectedJob) return;
     setIsSubmitting(true);
@@ -176,20 +262,39 @@ export default function JobsPage() {
         <div>
           <h1 className="text-4xl font-bold text-slate-800 flex items-center gap-3">
             <BriefcaseBusiness className="text-blue-600 h-10 w-10" />
-            Job Management
+            {isCandidate ? "Available Jobs" : "Job Management"}
           </h1>
           <p className="text-slate-500 mt-2">
-            View, upload, edit, and manage active job listings.
+            {isCandidate 
+              ? "Browse jobs, search & filter active listings, and apply with your profile."
+              : "View, upload, edit, and manage active job listings."}
           </p>
         </div>
-        <button
-          onClick={handleOpenCreateModal}
-          className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition duration-150 shadow-md shadow-blue-100 cursor-pointer"
-        >
-          <Plus size={20} />
-          Create New Job
-        </button>
+        {!isCandidate && (
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition duration-150 shadow-md shadow-blue-100 cursor-pointer"
+          >
+            <Plus size={20} />
+            Create New Job
+          </button>
+        )}
       </div>
+
+      {isCandidate && !hasResume && !profileLoading && (
+        <div className="mb-6 p-5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-amber-600 shrink-0" size={24} />
+            <div>
+              <h4 className="font-extrabold text-amber-900">Resume Upload Required</h4>
+              <p className="text-xs text-amber-700 mt-1 font-medium">Please upload your resume to activate AI skill extraction, semantic matching, and to apply for active job listings.</p>
+            </div>
+          </div>
+          <Link href="/upload-resume" className="px-5 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition shrink-0 shadow-sm">
+            Upload Now
+          </Link>
+        </div>
+      )}
 
       {/* Search and Filters */}
       <div className="bg-white rounded-2xl shadow-sm p-4 mb-6 flex items-center gap-3 border border-slate-100">
@@ -244,9 +349,9 @@ export default function JobsPage() {
             <p className="text-sm text-slate-400 max-w-sm mt-2">
               {searchQuery 
                 ? "No jobs match your search queries. Try adjusting your keyword filter."
-                : "Get started by creating your very first job description parsing pipeline."}
+                : (isCandidate ? "There are currently no active job listings available." : "Get started by creating your very first job description parsing pipeline.")}
             </p>
-            {!searchQuery && (
+            {!searchQuery && !isCandidate && (
               <button
                 onClick={handleOpenCreateModal}
                 className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition"
@@ -287,30 +392,58 @@ export default function JobsPage() {
                       })}
                     </td>
                     <td className="py-4 px-6 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <Link
-                          href={`/jobs/${job.id}/evaluate`}
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition duration-150 text-xs font-bold uppercase tracking-wider cursor-pointer"
-                          title="Evaluate Candidates"
-                        >
-                          <UserCheck size={14} />
-                          Evaluate
-                        </Link>
-                        <button
-                          onClick={() => handleOpenEditModal(job)}
-                          className="p-2 bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition duration-150 cursor-pointer"
-                          title="Edit Job"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleOpenDeleteModal(job)}
-                          className="p-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition duration-150 cursor-pointer"
-                          title="Delete Job"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {isCandidate ? (
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => handleOpenDetailsModal(job)}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition duration-150 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                            Details
+                          </button>
+                          {appliedJobIds.has(job.id) ? (
+                            <span className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200/50 rounded-lg text-xs font-bold uppercase tracking-wider">
+                              <CheckCircle2 size={14} />
+                              Applied
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleApply(job.id)}
+                              disabled={isSubmitting || profileLoading || !hasResume}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-lg transition duration-150 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                              title={hasResume ? "Apply to Job" : "Please upload your resume to apply"}
+                            >
+                              Apply
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-3">
+                          <Link
+                            href={`/jobs/${job.id}/evaluate`}
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 rounded-lg transition duration-150 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                            title="Evaluate Candidates"
+                          >
+                            <UserCheck size={14} />
+                            Evaluate
+                          </Link>
+                          <button
+                            onClick={() => handleOpenEditModal(job)}
+                            className="p-2 bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-600 rounded-lg transition duration-150 cursor-pointer"
+                            title="Edit Job"
+                          >
+                            <Edit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleOpenDeleteModal(job)}
+                            className="p-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-lg transition duration-150 cursor-pointer"
+                            title="Delete Job"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -499,6 +632,104 @@ export default function JobsPage() {
                 {isSubmitting && <Loader2 size={16} className="animate-spin" />}
                 {isSubmitting ? "Deleting..." : "Delete Job"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JOB DETAILS MODAL */}
+      {isDetailsModalOpen && selectedJob && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="bg-blue-100 text-blue-700 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md tracking-wider">
+                  {selectedJob.company || "Unknown Company"}
+                </span>
+                <h2 className="text-2xl font-bold text-slate-800 mt-2">
+                  {selectedJob.title}
+                </h2>
+              </div>
+              <button
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-lg cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Structured Metadata Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Department</span>
+                  <span className="text-sm font-bold text-slate-700 mt-1 block">{selectedJob.department || "-"}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Domain</span>
+                  <span className="text-sm font-bold text-slate-700 mt-1 block">{selectedJob.domain || "-"}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Experience</span>
+                  <span className="text-sm font-bold text-slate-700 mt-1 block">
+                    {selectedJob.experienceYears} Year{selectedJob.experienceYears === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Education</span>
+                  <span className="text-sm font-bold text-slate-700 mt-1 block">{selectedJob.educationLevel}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Seniority</span>
+                  <span className="text-sm font-bold text-slate-700 mt-1 block">{selectedJob.seniority}</span>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Posted On</span>
+                  <span className="text-sm font-bold text-slate-700 mt-1 block">
+                    {new Date(selectedJob.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Job Description */}
+              <div>
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Job Description</h3>
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 text-sm leading-relaxed whitespace-pre-line max-h-60 overflow-y-auto">
+                  {selectedJob.rawDescription}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsDetailsModalOpen(false)}
+                className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition cursor-pointer"
+              >
+                Close
+              </button>
+              {appliedJobIds.has(selectedJob.id) ? (
+                <span className="flex items-center gap-1.5 px-6 py-2.5 bg-green-50 text-green-700 border border-green-200/50 rounded-xl text-sm font-bold uppercase tracking-wider">
+                  <CheckCircle2 size={16} />
+                  Applied
+                </span>
+              ) : (
+                <button
+                  onClick={() => {
+                    handleApply(selectedJob.id);
+                    setIsDetailsModalOpen(false);
+                  }}
+                  disabled={isSubmitting || profileLoading || !hasResume}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition cursor-pointer shadow-md"
+                  title={hasResume ? "Apply Now" : "Please upload your resume to apply"}
+                >
+                  Apply Now
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   LayoutDashboard,
   Upload,
@@ -12,18 +13,42 @@ import {
   Settings,
 } from "lucide-react";
 
-const menus = [
-  { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-  { name: "Import Candidate Resume", icon: Upload, href: "/upload-resume" },
-  { name: "Jobs", icon: BriefcaseBusiness, href: "/jobs" },
-  { name: "Candidates", icon: Users, href: "#" },
-  { name: "AI Rankings", icon: Trophy, href: "/rankings" },
-  { name: "Analytics", icon: BarChart3, href: "#" },
-  { name: "Settings", icon: Settings, href: "#" },
-];
-
 export default function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role || "recruiter";
+
+  const recruiterMenus = [
+    { name: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
+    { name: "Import Candidate Resume", icon: Upload, href: "/upload-resume" },
+    { name: "Jobs", icon: BriefcaseBusiness, href: "/jobs" },
+    { name: "AI Rankings", icon: Trophy, href: "/rankings" },
+    { name: "Analytics", icon: BarChart3, href: "#" },
+    { name: "Settings", icon: Settings, href: "#" },
+  ];
+
+  const candidateMenus = [
+    { name: "Available Jobs", icon: BriefcaseBusiness, href: "/jobs" },
+    { name: "Upload Resume", icon: Upload, href: "/upload-resume" },
+    { name: "My Applications", icon: Trophy, href: "/candidates/applications" },
+    { name: "Application Status", icon: LayoutDashboard, href: "/candidates/status" },
+    { name: "My Profile", icon: Users, href: `/candidates/${session?.user?.id || 'profile'}` },
+  ];
+
+  const adminMenus = [
+    { name: "System Analytics", icon: BarChart3, href: "/admin/analytics" },
+    { name: "Manage Jobs", icon: BriefcaseBusiness, href: "/jobs" },
+    { name: "Manage Users", icon: Users, href: "/admin/users" },
+    { name: "Manage Recruiters", icon: Trophy, href: "/admin/recruiters" },
+    { name: "Settings", icon: Settings, href: "#" },
+  ];
+
+  let menus = recruiterMenus;
+  if (role === "candidate") {
+    menus = candidateMenus;
+  } else if (role === "admin") {
+    menus = adminMenus;
+  }
 
   return (
     <aside className="w-72 bg-slate-900 text-white min-h-screen flex flex-col">
@@ -57,8 +82,11 @@ export default function Sidebar() {
       </nav>
 
       <div className="border-t border-slate-800 p-5">
-        <p className="text-sm text-slate-400">Logged in as</p>
-        <h3 className="font-semibold mt-1">Recruiter</h3>
+        <p className="text-xs text-slate-400">Logged in as</p>
+        <h3 className="font-semibold mt-1 text-slate-200 truncate">{session?.user?.name || "Guest"}</h3>
+        <span className="text-[10px] bg-slate-850 border border-slate-700 text-slate-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider mt-1.5 inline-block">
+          {role}
+        </span>
       </div>
     </aside>
   );

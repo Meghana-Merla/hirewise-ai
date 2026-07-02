@@ -5,6 +5,34 @@ export interface AnomalyResult {
 
 export class AnomalyService {
   /**
+   * Classifies experience into professional vs non-professional.
+   * Only professional experience should participate in anomaly calculations.
+   */
+  public static isProfessionalExperience(job: { company: string; title: string }): boolean {
+    const titleLower = job.title.toLowerCase();
+    const companyLower = job.company.toLowerCase();
+
+    // Keywords that classify experience as Non-professional (Volunteer, Student Organization, Club, Open Source, Campus Activity)
+    const nonProfessionalKeywords = [
+      // Volunteer
+      'volunteer', 'volunteering', 'ngo', 'foundation', 'charity', 'nonprofit', 'non-profit', 'social work',
+      // Student Organization & Club & Campus Activity
+      'student organization', 'student activities', 'student activity', 'campus activity', 'campus activities',
+      'student club', 'club', 'society', 'campus ambassador', 'student lead', 'student representative',
+      'campus leader', 'extracurricular', 'chapter lead', 'student chapter', 'university chapter',
+      // Open Source
+      'open source', 'open-source', 'summer of code', 'contributor'
+    ];
+
+    // Check if title or company contains any non-professional indicators
+    const isNonProfessional = nonProfessionalKeywords.some(keyword =>
+      titleLower.includes(keyword) || companyLower.includes(keyword)
+    );
+
+    return !isNonProfessional;
+  }
+
+  /**
    * Deterministically validates a candidate profile for traps/honeypots.
    * Generates confidence levels based on chronological or mathematical impossibilities.
    */
@@ -40,9 +68,14 @@ export class AnomalyService {
     // HIGH CONFIDENCE ANOMALIES (Mathematically/Chronologically Impossible)
     // -------------------------------------------------------------
 
-    // 1. Single job duration exceeds total stated years of experience
+    // 1. Single job duration exceeds total stated years of experience (Only Professional)
     for (let i = 0; i < candidate.careerHistory.length; i++) {
       const job = candidate.careerHistory[i];
+      
+      if (!AnomalyService.isProfessionalExperience(job)) {
+        continue;
+      }
+
       if (job.durationMonths > yoeMonths + 2) {
         status = 'HIGH';
         reasons.push(
@@ -87,6 +120,7 @@ export class AnomalyService {
 
     // 5. Work started before university education by an impossible gap (6+ years)
     const workStartYears = candidate.careerHistory
+      .filter((j) => AnomalyService.isProfessionalExperience(j))
       .map((j) => {
         if (!j.startDate) return null;
         const dt = new Date(j.startDate);
@@ -144,7 +178,9 @@ export class AnomalyService {
     }
 
     // 3. Accumulated job duration exceeds total YOE
-    const totalJobMonths = candidate.careerHistory.reduce((acc, j) => acc + j.durationMonths, 0);
+    const totalJobMonths = candidate.careerHistory
+      .filter((j) => AnomalyService.isProfessionalExperience(j))
+      .reduce((acc, j) => acc + j.durationMonths, 0);
     if (totalJobMonths > yoeMonths + 24) {
       status = 'MEDIUM';
       reasons.push(

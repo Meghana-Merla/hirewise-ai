@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from "@/auth";
 import { handleError } from '../../../../core/errors/handler';
 import { PdfParserService } from '../../../../services/pdf-parser.service';
 import { MatchingService } from '../../../../services/matching.service';
@@ -9,7 +10,6 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    let userId = formData.get('userId') as string | null;
 
     if (!file) {
       throw new ValidationError('Resume file is required for upload.');
@@ -19,26 +19,17 @@ export async function POST(req: NextRequest) {
       throw new ValidationError('Only PDF files are supported for candidate resume uploads.');
     }
 
-    // Ensure a valid user exists in the database to prevent foreign key constraint failures
-    if (!userId) {
-      let defaultUser = await prisma.user.findFirst();
-      if (!defaultUser) {
-        defaultUser = await prisma.user.create({
-          data: {
-            email: 'recruiter@hirewise.ai',
-            passwordHash: 'placeholder_password_hash',
-            name: 'Default Recruiter',
-            role: 'recruiter',
-          },
-        });
-      }
-      userId = defaultUser.id;
-    } else {
-      const userExists = await prisma.user.findUnique({ where: { id: userId } });
-      if (!userExists) {
-        throw new ValidationError(`User with ID ${userId} does not exist in the database.`);
-      }
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
+
+    const role = (session.user as any).role;
+    if (role !== "recruiter" && role !== "admin" && role !== "candidate") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
+    const userId = session.user.id;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);

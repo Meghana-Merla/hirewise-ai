@@ -4,9 +4,20 @@ import { JobUploadSchema } from '../../../../schemas/validation.schema';
 import { MatchingService } from '../../../../services/matching.service';
 import { ValidationError } from '../../../../core/errors';
 import { prisma } from '../../../../lib/prisma';
+import { auth } from '@/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const role = (session.user as any).role;
+    if (role !== "recruiter" && role !== "admin") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
     const result = JobUploadSchema.safeParse(body);
 

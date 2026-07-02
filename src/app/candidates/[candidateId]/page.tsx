@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { 
   ArrowLeft,
@@ -30,7 +31,8 @@ import {
   AlertTriangle,
   Compass,
   Zap,
-  BookmarkCheck
+  BookmarkCheck,
+  UploadCloud
 } from "lucide-react";
 
 interface Skill {
@@ -99,6 +101,7 @@ interface Candidate {
   country: string | null;
   currentTitle: string | null;
   currentCompany: string | null;
+  currentCompanySize: string | null;
   currentIndustry: string | null;
   yearsOfExperience: number;
   
@@ -132,6 +135,8 @@ interface Candidate {
 export default function CandidateProfilePage() {
   const params = useParams();
   const candidateId = params.candidateId as string;
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role || "recruiter";
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -266,6 +271,19 @@ export default function CandidateProfilePage() {
           <Loader2 size={36} className="animate-spin text-blue-600 mb-4" />
           <p className="font-semibold text-lg">Loading Candidate Profile...</p>
         </div>
+      ) : userRole === "candidate" && (error || !candidate || !candidate.rawResumeText || candidate.rawResumeText.trim() === "") ? (
+        /* Upload Resume CTA */
+        <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center max-w-xl mx-auto my-12 text-slate-700 shadow-sm">
+          <Sparkles size={48} className="mx-auto mb-4 text-blue-500 animate-pulse" />
+          <h2 className="text-2xl font-bold text-slate-800">Complete Your Profile</h2>
+          <p className="text-sm mt-3 text-slate-500 max-w-md mx-auto leading-relaxed">
+            Welcome to HireWise AI! To browse jobs, get AI match scores, and apply for roles, please upload your resume first.
+          </p>
+          <Link href="/upload-resume" className="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition shadow-md hover:shadow-lg">
+            <UploadCloud size={18} />
+            Upload Resume
+          </Link>
+        </div>
       ) : error || !candidate ? (
         /* Error page */
         <div className="bg-red-50 border border-red-100 rounded-2xl p-8 text-center max-w-xl mx-auto my-12 text-red-700">
@@ -306,28 +324,40 @@ export default function CandidateProfilePage() {
             </div>
 
             {/* Application selector */}
-            {candidate.matches.length > 0 ? (
-              <div className="flex flex-col gap-2 shrink-0 md:text-right">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active ATS Job Match</label>
-                <div className="bg-slate-50 px-3 py-2 border border-slate-100 rounded-xl">
-                  <select
-                    value={selectedMatchId}
-                    onChange={(e) => handleMatchChange(e.target.value)}
-                    className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
-                  >
-                    {candidate.matches.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.job.title}
-                      </option>
-                    ))}
-                  </select>
+            <div className="flex flex-col gap-3 shrink-0 md:items-end">
+              {candidate.matches.length > 0 ? (
+                <div className="flex flex-col gap-1.5 md:text-right">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active ATS Job Match</label>
+                  <div className="bg-slate-50 px-3 py-2 border border-slate-100 rounded-xl">
+                    <select
+                      value={selectedMatchId}
+                      onChange={(e) => handleMatchChange(e.target.value)}
+                      className="text-sm font-bold text-slate-700 bg-transparent outline-none cursor-pointer"
+                    >
+                      {candidate.matches.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.job.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-slate-50 text-slate-500 px-4 py-2 rounded-xl text-xs font-semibold shrink-0">
-                No active job evaluation matches.
-              </div>
-            )}
+              ) : (
+                <div className="bg-slate-50 text-slate-500 px-4 py-2 rounded-xl text-xs font-semibold shrink-0">
+                  No active job evaluation matches.
+                </div>
+              )}
+
+              {userRole === "candidate" && (
+                <Link 
+                  href="/upload-resume" 
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-sm hover:shadow-md cursor-pointer"
+                >
+                  <UploadCloud size={14} />
+                  Replace Resume
+                </Link>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -335,12 +365,14 @@ export default function CandidateProfilePage() {
             <div className="col-span-1 lg:col-span-8 space-y-8">
               
               {/* Summary / Headline Card */}
-              {candidate.summary && (
-                <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Executive Summary</h3>
-                  <p className="text-slate-600 text-sm leading-relaxed font-medium">{candidate.summary}</p>
-                </div>
-              )}
+              <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Executive Summary</h3>
+                <p className="text-slate-600 text-sm leading-relaxed font-medium">
+                  {(!candidate.summary || candidate.summary.trim() === "" || candidate.summary.toLowerCase() === "null")
+                    ? "No professional summary available."
+                    : candidate.summary}
+                </p>
+              </div>
 
               {/* Professional details: Experience, Skills, Education */}
               <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-8">

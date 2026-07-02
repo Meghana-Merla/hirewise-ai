@@ -82,40 +82,73 @@ export class MatchingService {
     rawResumeText: string,
     customCandidateId?: string
   ): Promise<any> {
+    const existingCandidate = await prisma.candidate.findFirst({
+      where: { userId }
+    });
+
     // 1. Parse Resume using Gemini
     const parsedCandidate = await GeminiService.parseResume(rawResumeText);
 
     // 2. Generate Candidate embedding
     const embedding = await GeminiService.generateEmbedding(rawResumeText);
 
-    // 3. Generate a unique official Candidate ID (CAND_XXXXXXX) if not provided
-    const officialCandId = customCandidateId || (await this.generateUniqueCandidateId());
+    let candidate;
 
-    // 4. Save Candidate, Career History, Education, Skills
-    const candidate = await prisma.candidate.create({
-      data: {
-        userId,
-        candidateId: officialCandId,
-        name: parsedCandidate.profile.anonymizedName,
-        rawResumeText,
-        headline: parsedCandidate.profile.headline,
-        summary: parsedCandidate.profile.summary,
-        location: parsedCandidate.profile.location,
-        country: parsedCandidate.profile.country,
-        yearsOfExperience: parsedCandidate.profile.yearsOfExperience,
-        currentTitle: parsedCandidate.profile.currentTitle,
-        currentCompany: parsedCandidate.profile.currentCompany,
-        currentCompanySize: parsedCandidate.profile.currentCompanySize,
-        currentIndustry: parsedCandidate.profile.currentIndustry,
-        // Default Redrob behavioral signal values
-        profileCompleteness: 85.0,
-        openToWork: true,
-        noticePeriodDays: 30,
-        connectionCount: 150,
-        recruiterResponse: 0.85,
-        avgResponseTime: 24.0,
-      },
-    });
+    if (existingCandidate) {
+      // Clean up existing nested records
+      await prisma.skill.deleteMany({ where: { candidateId: existingCandidate.id } });
+      await prisma.careerHistory.deleteMany({ where: { candidateId: existingCandidate.id } });
+      await prisma.education.deleteMany({ where: { candidateId: existingCandidate.id } });
+
+      // Update candidate details
+      candidate = await prisma.candidate.update({
+        where: { id: existingCandidate.id },
+        data: {
+          name: this.formatCandidateName(parsedCandidate.profile.anonymizedName || existingCandidate.name),
+          rawResumeText,
+          headline: parsedCandidate.profile.headline,
+          summary: (parsedCandidate.profile.summary && parsedCandidate.profile.summary.trim() !== "" && parsedCandidate.profile.summary.toLowerCase() !== "null") ? parsedCandidate.profile.summary : null,
+          location: parsedCandidate.profile.location,
+          country: parsedCandidate.profile.country,
+          yearsOfExperience: parsedCandidate.profile.yearsOfExperience,
+          currentTitle: parsedCandidate.profile.currentTitle,
+          currentCompany: parsedCandidate.profile.currentCompany,
+          currentCompanySize: parsedCandidate.profile.currentCompanySize,
+          currentIndustry: parsedCandidate.profile.currentIndustry,
+          profileCompleteness: 100.0,
+          openToWork: true,
+        },
+      });
+    } else {
+      // Generate a unique official Candidate ID (CAND_XXXXXXX) if not provided
+      const officialCandId = customCandidateId || (await this.generateUniqueCandidateId());
+
+      // Save Candidate
+      candidate = await prisma.candidate.create({
+        data: {
+          userId,
+          candidateId: officialCandId,
+          name: this.formatCandidateName(parsedCandidate.profile.anonymizedName),
+          rawResumeText,
+          headline: parsedCandidate.profile.headline,
+          summary: (parsedCandidate.profile.summary && parsedCandidate.profile.summary.trim() !== "" && parsedCandidate.profile.summary.toLowerCase() !== "null") ? parsedCandidate.profile.summary : null,
+          location: parsedCandidate.profile.location,
+          country: parsedCandidate.profile.country,
+          yearsOfExperience: parsedCandidate.profile.yearsOfExperience,
+          currentTitle: parsedCandidate.profile.currentTitle,
+          currentCompany: parsedCandidate.profile.currentCompany,
+          currentCompanySize: parsedCandidate.profile.currentCompanySize,
+          currentIndustry: parsedCandidate.profile.currentIndustry,
+          // Default Redrob behavioral signal values
+          profileCompleteness: 85.0,
+          openToWork: true,
+          noticePeriodDays: 30,
+          connectionCount: 150,
+          recruiterResponse: 0.85,
+          avgResponseTime: 24.0,
+        },
+      });
+    }
 
     // 5. Save embedding vector
     const vectorStr = this.formatVectorString(embedding);
@@ -140,19 +173,73 @@ export class MatchingService {
 
     // 7. Save Career History
     if (parsedCandidate.careerHistory && parsedCandidate.careerHistory.length > 0) {
+      const parseDateSafely = (dateVal: any): Date | null => {
+        if (!dateVal) return null;
+        if (typeof dateVal !== "string") {
+          if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+            return dateVal;
+          }
+          return null;
+        }
+        const cleaned = dateVal.trim();
+        if (
+          cleaned === "" ||
+          cleaned.toLowerCase() === "null" ||
+          cleaned.toLowerCase() === "present" ||
+          cleaned.toLowerCase() === "current" ||
+          cleaned.toLowerCase() === "undefined"
+        ) {
+          return null;
+        }
+        const dateObj = new Date(cleaned);
+        if (isNaN(dateObj.getTime())) {
+          return null;
+        }
+        return dateObj;
+      };
+
+      const cleanNullableString = (val: any) => {
+        if (val === null || val === undefined) return null;
+        const strVal = String(val).trim();
+        if (strVal.toLowerCase() === "null" || strVal.toLowerCase() === "undefined" || strVal === "") {
+          return null;
+        }
+        return strVal;
+      };
+
       await prisma.careerHistory.createMany({
-        data: parsedCandidate.careerHistory.map((ch) => ({
-          candidateId: candidate.id,
-          company: ch.company,
-          title: ch.title,
-          startDate: ch.startDate ? new Date(ch.startDate) : null,
-          endDate: ch.endDate ? new Date(ch.endDate) : null,
-          durationMonths: ch.durationMonths,
-          isCurrent: ch.isCurrent,
-          industry: ch.industry,
-          companySize: ch.companySize,
-          description: ch.description,
-        })),
+        data: parsedCandidate.careerHistory.map((ch) => {
+          const startDate = parseDateSafely(ch.startDate);
+          let endDate = parseDateSafely(ch.endDate);
+          let isCurrent = ch.isCurrent;
+
+          const rawEnd = typeof ch.endDate === "string" ? ch.endDate.trim().toLowerCase() : "";
+          if (
+            !ch.endDate ||
+            rawEnd === "" ||
+            rawEnd === "present" ||
+            rawEnd === "current" ||
+            rawEnd === "undefined" ||
+            rawEnd === "null" ||
+            !endDate
+          ) {
+            endDate = null;
+            isCurrent = true;
+          }
+
+          return {
+            candidateId: candidate.id,
+            company: cleanNullableString(ch.company) || "Unknown Company",
+            title: cleanNullableString(ch.title) || "Unknown Title",
+            startDate,
+            endDate,
+            durationMonths: typeof ch.durationMonths === "number" ? ch.durationMonths : 0,
+            isCurrent: !!isCurrent,
+            industry: cleanNullableString(ch.industry),
+            companySize: cleanNullableString(ch.companySize),
+            description: cleanNullableString(ch.description),
+          };
+        }),
       });
     }
 
@@ -171,6 +258,9 @@ export class MatchingService {
         })),
       });
     }
+
+    // 9. Re-run candidate matching against all jobs
+    await this.runCandidateMatching(candidate.id);
 
     return candidate;
   }
@@ -283,7 +373,7 @@ export class MatchingService {
         weaknesses.push(`Missing some required skills: ${missingSkills.slice(0, 3).join(', ')}.`);
       }
 
-      const hiringRecommendation = `Candidate ${candidate.name} exhibits an overall fit of ${breakdown.overallScore.toFixed(1)}%. Key skills are ${candidate.skills.slice(0, 3).map((s) => s.name).join(', ')}.`;
+      const hiringRecommendation = `Candidate ${candidate.name} exhibits an overall fit of ${(breakdown.overallScore * 100).toFixed(1)}%. Key skills are ${candidate.skills.slice(0, 3).map((s) => s.name).join(', ')}.`;
 
       // 5. Save/Update Match record
       await prisma.match.upsert({
@@ -346,5 +436,165 @@ export class MatchingService {
       attempts++;
     }
     throw new Error('Failed to generate a unique candidate ID after 10 attempts.');
+  }
+
+  private static formatCandidateName(name: string): string {
+    if (!name) return "";
+    return name
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+      .trim();
+  }
+
+  /**
+   * Runs the matching calculations for a Candidate against all Jobs in the database.
+   */
+  public static async runCandidateMatching(candidateId: string): Promise<number> {
+    // 1. Fetch Candidate
+    const candidate = await prisma.candidate.findUnique({
+      where: { id: candidateId },
+      include: {
+        skills: true,
+        careerHistory: true,
+        education: true,
+      },
+    });
+    if (!candidate) {
+      throw new Error(`Candidate not found for ID: ${candidateId}`);
+    }
+
+    // 2. Fetch Candidate Embedding
+    const candEmbedResult = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT "embedding"::text FROM "Candidate" WHERE "id" = $1`,
+      candidateId
+    );
+    const candVector = this.parseVectorString(candEmbedResult[0]?.embedding);
+
+    const candScoringInput: CandidateScoringInput = {
+      yearsOfExperience: candidate.yearsOfExperience,
+      skills: candidate.skills,
+      careerHistory: candidate.careerHistory.map((ch) => ({
+        company: ch.company,
+        title: ch.title,
+        startDate: ch.startDate,
+        endDate: ch.endDate,
+        durationMonths: ch.durationMonths,
+        isCurrent: ch.isCurrent,
+      })),
+      education: candidate.education,
+      noticePeriodDays: candidate.noticePeriodDays,
+      openToWork: candidate.openToWork,
+      lastActiveDate: candidate.lastActiveDate,
+      profileCompleteness: candidate.profileCompleteness,
+      connectionCount: candidate.connectionCount,
+      recruiterResponseRate: candidate.recruiterResponse,
+      embedding: candVector.length > 0 ? candVector : null,
+    };
+
+    // 3. Fetch all Jobs
+    const jobs = await prisma.job.findMany();
+
+    // Fetch Job Embeddings map
+    const jobEmbedResults = await prisma.$queryRawUnsafe<any[]>(
+      `SELECT "id", "embedding"::text FROM "Job"`
+    );
+    const embeddingMap = new Map<string, number[]>();
+    for (const r of jobEmbedResults) {
+      if (r.embedding) {
+        embeddingMap.set(r.id, this.parseVectorString(r.embedding));
+      }
+    }
+
+    let matchCount = 0;
+
+    // 4. Calculate score for each job and save Match
+    for (const job of jobs) {
+      const jobEmbedding = embeddingMap.get(job.id);
+      const jobScoringInput: JobScoringInput = {
+        experienceYears: job.experienceYears,
+        requiredSkills: job.requiredSkills,
+        preferredSkills: job.preferredSkills,
+        preferProductCompany: job.preferProductCompany,
+        embedding: jobEmbedding || null,
+      };
+
+      const breakdown = RankingService.scoreCandidate(candScoringInput, jobScoringInput);
+
+      const strengths: string[] = [];
+      const weaknesses: string[] = [];
+      const missingSkills: string[] = [];
+
+      const candSkillSet = new Set(candidate.skills.map((s) => s.name.toLowerCase().trim()));
+      for (const reqSkill of job.requiredSkills) {
+        if (!candSkillSet.has(reqSkill.toLowerCase().trim())) {
+          missingSkills.push(reqSkill);
+        }
+      }
+
+      if (breakdown.skillMatchScore >= 80.0) {
+        strengths.push('Technical skill alignment is exceptionally strong.');
+      }
+      if (breakdown.experienceScore >= 90.0) {
+        strengths.push(`Stated ${candidate.yearsOfExperience} YOE matches target band.`);
+      }
+      if (breakdown.educationScore >= 80.0) {
+        strengths.push('Candidate attended a premier academic institution.');
+      }
+
+      if (candidate.noticePeriodDays >= 90) {
+        weaknesses.push(`Notice period of ${candidate.noticePeriodDays} days poses transition risk.`);
+      }
+      if (breakdown.experienceScore < 60.0) {
+        weaknesses.push('Experience falls outside the optimal range requested in the JD.');
+      }
+      if (missingSkills.length > 0) {
+        weaknesses.push(`Missing some required skills: ${missingSkills.slice(0, 3).join(', ')}.`);
+      }
+
+      const hiringRecommendation = `Candidate ${candidate.name} exhibits an overall fit of ${(breakdown.overallScore * 100).toFixed(1)}%. Key skills are ${candidate.skills.slice(0, 3).map((s) => s.name).join(', ')}.`;
+
+      await prisma.match.upsert({
+        where: {
+          jobId_candidateId: {
+            jobId: job.id,
+            candidateId: candidate.id,
+          },
+        },
+        create: {
+          jobId: job.id,
+          candidateId: candidate.id,
+          overallScore: breakdown.overallScore,
+          semanticSimilarity: breakdown.semanticSimilarity,
+          skillMatchScore: breakdown.skillMatchScore,
+          experienceScore: breakdown.experienceScore,
+          educationScore: breakdown.educationScore,
+          domainScore: breakdown.domainScore,
+          careerProgressionScore: breakdown.careerProgressionScore,
+          availabilityScore: breakdown.availabilityScore,
+          strengths,
+          weaknesses,
+          missingSkills,
+          hiringRecommendation,
+        },
+        update: {
+          overallScore: breakdown.overallScore,
+          semanticSimilarity: breakdown.semanticSimilarity,
+          skillMatchScore: breakdown.skillMatchScore,
+          experienceScore: breakdown.experienceScore,
+          educationScore: breakdown.educationScore,
+          domainScore: breakdown.domainScore,
+          careerProgressionScore: breakdown.careerProgressionScore,
+          availabilityScore: breakdown.availabilityScore,
+          strengths,
+          weaknesses,
+          missingSkills,
+          hiringRecommendation,
+        },
+      });
+
+      matchCount++;
+    }
+
+    return matchCount;
   }
 }

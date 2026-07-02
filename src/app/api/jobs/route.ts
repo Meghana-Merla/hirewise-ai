@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MatchingService } from "@/services/matching.service";
+import { auth } from "@/auth";
 
 export async function GET() {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
     const jobs = await prisma.job.findMany({
       orderBy: {
         createdAt: "desc",
@@ -18,6 +24,16 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const role = (session.user as any).role;
+    if (role !== "recruiter" && role !== "admin") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
+
     const body = await req.json();
     const {
       title,
@@ -28,7 +44,6 @@ export async function POST(req: NextRequest) {
       educationLevel,
       seniority,
       domain,
-      userId,
     } = body;
 
     if (!rawDescription || rawDescription.length < 20) {
@@ -38,24 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ensure a valid user ID
-    let finalUserId = userId;
-    if (!finalUserId) {
-      const defaultUser = await prisma.user.findFirst();
-      if (!defaultUser) {
-        const newUser = await prisma.user.create({
-          data: {
-            email: "recruiter@hirewise.ai",
-            passwordHash: "placeholder_password_hash",
-            name: "Default Recruiter",
-            role: "recruiter",
-          },
-        });
-        finalUserId = newUser.id;
-      } else {
-        finalUserId = defaultUser.id;
-      }
-    }
+    const finalUserId = session.user.id;
 
     // Call matching service to parse, generate embedding, and create Job
     const job = await MatchingService.createJobDescription(finalUserId, rawDescription, {

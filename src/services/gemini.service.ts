@@ -17,22 +17,72 @@ export class GeminiService {
   }
 
   /**
+   * Centralized helper to run Gemini API operations with exponential backoff retries.
+   * Retries on 429 and 503 errors, up to 3 times.
+   */
+  private static async runWithRetry<T>(
+    operation: () => Promise<T>,
+    errorMessagePrefix: string
+  ): Promise<T> {
+    const delays = [2000, 4000, 8000];
+    for (let attempt = 0; attempt <= 3; attempt++) {
+      try {
+        return await operation();
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errObj = error as { status?: number; statusCode?: number; status_code?: number } | null | undefined;
+        const status = errObj?.status || errObj?.statusCode || errObj?.status_code;
+
+        const is429 = status === 429 || 
+                      errorMessage.includes('429') || 
+                      errorMessage.toLowerCase().includes('resource exhausted') || 
+                      errorMessage.toLowerCase().includes('rate limit');
+                      
+        const is503 = status === 503 || 
+                      errorMessage.includes('503') || 
+                      errorMessage.toLowerCase().includes('service unavailable') || 
+                      errorMessage.toLowerCase().includes('overloaded') || 
+                      errorMessage.toLowerCase().includes('temporarily unavailable');
+
+        if ((is429 || is503) && attempt < 3) {
+          const delay = delays[attempt];
+          console.warn(`${errorMessagePrefix} failed with transient error ${status || ''} (attempt ${attempt + 1}/4). Retrying in ${delay}ms... Error: ${errorMessage}`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          continue;
+        }
+
+        if (attempt === 3 && (is429 || is503)) {
+          throw new AIError("AI resume parsing is temporarily unavailable. Please try again in a few minutes.");
+        }
+
+        throw error;
+      }
+    }
+    throw new AIError("AI resume parsing is temporarily unavailable. Please try again in a few minutes.");
+  }
+
+  /**
    * Generates a 768-dimension dense vector embedding for the given text.
    */
   public static async generateEmbedding(text: string): Promise<number[]> {
     try {
       const client = this.getClient();
       const model = client.getGenerativeModel({ model: 'gemini-embedding-001' });
-      const result = await model.embedContent({
-        content: {
-          parts: [{ text }],
-        },
-        outputDimensionality: 768,
-      } as any);
-      if (!result?.embedding?.values) {
-        throw new AIError('Embedding generation returned empty values.');
-      }
-      return result.embedding.values;
+      
+      const embeddingValues = await this.runWithRetry(async () => {
+        const result = await model.embedContent({
+          content: {
+            parts: [{ text }],
+          },
+          outputDimensionality: 768,
+        } as unknown as Parameters<typeof model.embedContent>[0]);
+        if (!result?.embedding?.values) {
+          throw new Error('Embedding generation returned empty values.');
+        }
+        return result.embedding.values;
+      }, 'Gemini Embedding generation');
+
+      return embeddingValues;
     } catch (error) {
       if (error instanceof AIError) throw error;
       throw new AIError(`Gemini Embedding generation failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -59,15 +109,21 @@ Format the yearsOfExperience as a number. For education, categorize the school t
 If dates are incomplete, estimate or leave null. If details are missing, return null or empty lists, but adhere strictly to the schema structure.
 For skills, estimate the active durationMonths based on the resume timeline, and assign a proficiency level ('beginner', 'intermediate', 'advanced', 'expert').
 
+For careerHistory, extract all professional experiences, internships, training programs, roles, or volunteer/club involvements. If there is no dedicated 'Work Experience' or 'Employment' heading, look under sections like 'Achievements', 'Social Engagements and Experience', 'Experience', 'Volunteering', etc. to find these entries (e.g. 'DESIS Ascend Educare Program', 'GirlScript Summer of Code', 'UDAAN Career Club', 'CSETimes', 'KARTAVYA') and parse them. Ensure to clean and format their company/organization and title names.
+
 Resume Text:
 ${resumeText}
       `;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      if (!responseText) {
-        throw new AIError('Empty response received from Gemini during resume parsing.');
-      }
+      const responseText = await this.runWithRetry(async () => {
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        if (!text) {
+          throw new Error('Empty response received from Gemini during resume parsing.');
+        }
+        return text;
+      }, 'Gemini resume parsing');
+
       return JSON.parse(responseText) as ParsedCandidate;
     } catch (error) {
       if (error instanceof AIError) throw error;
@@ -98,11 +154,15 @@ Job Description:
 ${jdText}
       `;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      if (!responseText) {
-        throw new AIError('Empty response received from Gemini during job description parsing.');
-      }
+      const responseText = await this.runWithRetry(async () => {
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        if (!text) {
+          throw new Error('Empty response received from Gemini during job description parsing.');
+        }
+        return text;
+      }, 'Gemini Job Description parsing');
+
       return JSON.parse(responseText) as ParsedJob;
     } catch (error) {
       if (error instanceof AIError) throw error;
@@ -157,7 +217,7 @@ Key Resume Details:
 ${candidate.rawResumeText.slice(0, 2000)}
 
 Scoring Metrics Breakdown (0.0 to 100.0 scale):
-- Overall Fit Score: ${scores.overallScore.toFixed(1)}
+- Overall Fit Score: ${(scores.overallScore * 100).toFixed(1)}
 - Semantic Resume Similarity: ${scores.semanticSimilarity.toFixed(1)}
 - Technical Skill Match: ${scores.skillMatchScore.toFixed(1)}
 - Experience & Seniority Score: ${scores.experienceScore.toFixed(1)}
@@ -174,11 +234,15 @@ Generate:
 5. Improvement Suggestions (Array of strings, actionable suggestions for the candidate)
       `;
 
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      if (!responseText) {
-        throw new AIError('Empty response received from Gemini during explainability report generation.');
-      }
+      const responseText = await this.runWithRetry(async () => {
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        if (!text) {
+          throw new Error('Empty response received from Gemini during explainability report generation.');
+        }
+        return text;
+      }, 'Gemini explainability report generation');
+
       return JSON.parse(responseText);
     } catch (error) {
       if (error instanceof AIError) throw error;
@@ -195,7 +259,7 @@ Generate:
         profile: {
           type: SchemaType.OBJECT,
           properties: {
-            anonymizedName: { type: SchemaType.STRING },
+            anonymizedName: { type: SchemaType.STRING, description: 'The candidate\'s full name (e.g. "Durga Naga Meghana Merla"). Ensure proper spacing between names.' },
             headline: { type: SchemaType.STRING },
             summary: { type: SchemaType.STRING },
             location: { type: SchemaType.STRING },

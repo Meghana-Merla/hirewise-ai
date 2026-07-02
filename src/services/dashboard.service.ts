@@ -39,7 +39,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     totalCandidates,
     activeJobs,
     averageAIScore: Number(
-      (averageScore._avg.overallScore ?? 0).toFixed(1)
+      ((averageScore._avg.overallScore ?? 0) * 100).toFixed(1)
     ),
     shortlisted,
     recentUploads,
@@ -71,39 +71,39 @@ export async function getDashboardAnalytics(): Promise<DashboardAnalytics> {
     prisma.match.count({
       where: {
         overallScore: {
-          gte: 90,
-          lte: 100,
+          gte: 0.90,
+          lte: 1.0,
         },
       },
     }),
     prisma.match.count({
       where: {
         overallScore: {
-          gte: 80,
-          lt: 90,
+          gte: 0.80,
+          lt: 0.90,
         },
       },
     }),
     prisma.match.count({
       where: {
         overallScore: {
-          gte: 70,
-          lt: 80,
+          gte: 0.70,
+          lt: 0.80,
         },
       },
     }),
     prisma.match.count({
       where: {
         overallScore: {
-          gte: 60,
-          lt: 70,
+          gte: 0.60,
+          lt: 0.70,
         },
       },
     }),
     prisma.match.count({
       where: {
         overallScore: {
-          lt: 60,
+          lt: 0.60,
         },
       },
     }),
